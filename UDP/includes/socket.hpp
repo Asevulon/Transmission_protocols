@@ -23,12 +23,12 @@ inline auto create_server_addr(uint16_t port)
     return server_addr;
 }
 
-inline void bind_socket(int socket, sockaddr *server_addr)
+inline void bind_socket(int sockfd, const sockaddr_in &addr)
 {
-    if (bind(socket, server_addr, sizeof(sockaddr)) == -1)
+    if (bind(sockfd, reinterpret_cast<const sockaddr *>(&addr), sizeof(addr)) == -1)
     {
-        close(socket);
-        throw std::runtime_error("Socket is not bint");
+        close(sockfd);
+        throw std::runtime_error("Bind failed: " + std::string(strerror(errno)));
     }
 }
 
@@ -43,7 +43,7 @@ inline auto get_message(
     if (res == -1)
     {
         close(sockfd);
-        throw("Receive failed");
+        throw std::runtime_error("Receive failed: " + std::string(strerror(errno)));
     }
     return res;
 }

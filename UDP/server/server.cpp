@@ -2,18 +2,30 @@
 #include <config.hpp>
 #include <socket.hpp>
 #include <arpa/inet.h>
+#include <csignal>
+
+int sockfd = -1;
+void clean_socket()
+{
+    if (sockfd != -1)
+        close(sockfd);
+    std::cout << "\nSocked was cleaned\n";
+}
+void sigint_handler(int s) { exit(0); }
 
 int main(int argc, char **argv)
 {
     try
     {
+        atexit(clean_socket);
+        std::signal(SIGINT, sigint_handler);
+
         Config conf = load_config_from_args(argc, argv);
 
-        auto sockfd = create_socket();
+        sockfd = create_socket();
         auto server_addr = create_server_addr(conf["port"].get<uint16_t>());
-        bind_socket(sockfd, (sockaddr *)&server_addr);
+        bind_socket(sockfd, server_addr);
         std::cout << "server is ready on port: " << conf["port"].get<uint16_t>() << '\n';
-        close(sockfd);
 
         sockaddr_in client_addr;
         std::vector<char> buffer;
@@ -25,7 +37,6 @@ int main(int argc, char **argv)
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         std::cout << "from " << client_ip << ":" << ntohs(client_addr.sin_port) << "\n";
         std::cout << "message: " << buffer.data() << std::endl;
-        close(sockfd);
     }
     catch (const std::exception &e)
     {

@@ -40,7 +40,7 @@ build(){
 run(){
     TARGET=$1
     ARGS=$2
-    echo -e "\nRunning target ${TARGET}"
+    echo -e "\nRunning target: ${TARGET}"
     echo "with args: ${ARGS}"
     line
     $TARGET $ARGS
