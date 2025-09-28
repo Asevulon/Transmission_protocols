@@ -1,7 +1,2 @@
-# file (GLOB_RECURSE SERVER_SRC "server/*.cpp")
-# file (GLOB_RECURSE SERVER_HDR "server/*.h")
-# add_executable(udp_server ${SERVER_SRC} ${SERVER_HDR})
-# target_include_directories(udp_server PRIVATE "server")
-# target_link_libraries(udp_server PRIVATE nlohmann_json)
-# install(TARGETS udp_server)
 create_executable(udp_server "server")
+create_executable(udp_client "client")
