@@ -9,6 +9,7 @@ int main(int argc, char **argv)
         Config conf = load_config_from_args(argc, argv);
 
         auto socket = create_socket();
+        close(socket);
     }
     catch (const std::exception &e)
     {
