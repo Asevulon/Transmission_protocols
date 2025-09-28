@@ -1,0 +1,80 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_PATH="${SCRIPT_DIR}/install"
+BUILD_PATH="${SCRIPT_DIR}/build"
+CONFIG_PATH="${SCRIPT_DIR}/config"
+BUILD_TYPE="Release"
+PARALLEL=4
+
+LINE="==============================================="
+
+line(){
+    echo ""
+    echo $LINE
+    echo ""
+}
+
+clear(){
+    rm -rf $1
+    mkdir $1
+}
+
+build(){
+    cmake \
+        -S . \
+        -B $BUILD_PATH \
+        -DCMAKE_C_COMPILER=gcc-13 \
+        -DCMAKE_CXX_COMPILER=g++-13 \
+        -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+        -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH
+
+    cmake \
+        --build $BUILD_PATH \
+        --parallel $PARALLEL
+
+    cmake \
+        --install $BUILD_PATH
+}
+
+run(){
+    TARGET=$1
+    ARGS=$2
+    echo -e "\nRunning target ${TARGET}"
+    line
+    $TARGET $ARGS
+    line
+    echo -e "Done\n"
+}
+
+target_path(){
+    echo "${INSTALL_PATH}/bin/${1}"
+}
+target_config(){
+    echo "${CONFIG_PATH}/${1}"
+}
+
+mkdir $INSTALL_PATH
+mkdir $BUILD_PATH
+
+build
+
+if [ "$#" -eq 1 ]; then
+    TARGET=$(target_path $1)
+    CONFIG=$(target_config "${1}.json")
+    run $TARGET $CONFIG
+elif [ "$#" -eq 2 ]; then
+    TARGET=$(target_path $1)
+    CONFIG=$(target_config $2)
+    run $TARGET $CONFIG
+else
+    line
+    echo "Для запуска приложения надо:"
+    echo "  arg1: имя_приложения"
+    echo "  arg2: имя_конфига"
+    echo "NOTE: директория приложения: ${INSTALL_PATH}"
+    echo "NOTE: директория конфига: ${CONFIG_PATH}"
+    echo "NOTE: если arg2 пропущен, то будет использован конфиг имя_приложения.json"
+    line
+    exit
+fi
