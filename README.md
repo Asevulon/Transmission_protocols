@@ -1,7 +1,7 @@
 # Протоколы передачи данных
 ## Build
 ```
-git submodule update --init --recurse
+git submodule update --init --recursive
 source env.sh
 run
 ```
