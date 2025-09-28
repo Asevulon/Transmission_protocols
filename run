@@ -55,8 +55,8 @@ target_config(){
     echo "${CONFIG_PATH}/${1}"
 }
 
-mkdir $INSTALL_PATH
-mkdir $BUILD_PATH
+mkdir -p $INSTALL_PATH
+mkdir -p $BUILD_PATH
 
 build
 
@@ -75,7 +75,7 @@ else
     echo "  arg2: имя_конфига"
     echo "NOTE: директория приложения: ${INSTALL_PATH}"
     echo "NOTE: директория конфига: ${CONFIG_PATH}"
-    echo "NOTE: если arg2 пропущен, то будет использован конфиг имя_приложения.json"
+    echo "NOTE: если arg2 пропущен, то будет использован конфиг arg1.json"
     line
     exit
 fi
