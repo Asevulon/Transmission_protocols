@@ -88,5 +88,6 @@ inline auto set_timeout(int sockfd, int sec)
 {
     timeval timeout;
     timeout.tv_sec = sec;
+    timeout.tv_usec = 0;
     return setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 }
