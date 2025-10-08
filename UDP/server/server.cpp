@@ -30,7 +30,7 @@ int main(int argc, char **argv)
         sockaddr_in client_addr;
         std::vector<char> buffer;
         buffer.resize(1024);
-        while(true)
+        while (true)
         {
             auto bytes = get_message(sockfd, buffer.data(), buffer.size() - 1, client_addr);
             buffer[bytes] = '\0';
@@ -39,8 +39,7 @@ int main(int argc, char **argv)
             inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
             std::cout << "from " << client_ip << ":" << ntohs(client_addr.sin_port) << "\n";
             std::cout << "message: " << buffer.data() << std::endl;
-            std::string reply;
-            std::cin >> reply;
+            std::string reply = buffer.data();
             send_message(sockfd, reply, client_addr);
         }
     }
