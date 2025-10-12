@@ -10,7 +10,7 @@ int main(int argc, char **argv)
         Config conf = load_config_from_args(argc, argv);
 
         auto socket = create_socket();
-        if (set_timeout(socket, 1) < 0)
+        if (set_timeout(socket, conf["timeout"]) < 0)
         {
             perror("setsockopt SO_RCVTIMEO");
             close(socket);
@@ -35,8 +35,15 @@ int main(int argc, char **argv)
 
             // Optional: Wait for response from server
             auto bytes = get_message(socket, buffer.data(), buffer.size() - 1, response_addr);
-            buffer[bytes] = '\0';
-            std::cout << "Server response: " << buffer.data() << std::endl;
+            if (bytes < 0)
+            {
+                std::cout << "No answer from sever\n";
+            }
+            else
+            {
+                buffer[bytes] = '\0';
+                std::cout << "Server response: " << buffer.data() << std::endl;
+            }
         }
 
         close(socket);

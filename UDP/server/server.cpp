@@ -39,7 +39,8 @@ int main(int argc, char **argv)
             inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
             std::cout << "from " << client_ip << ":" << ntohs(client_addr.sin_port) << "\n";
             std::cout << "message: " << buffer.data() << std::endl;
-            std::string reply = buffer.data();
+            std::string reply;
+            std::cin >> reply;
             send_message(sockfd, reply, client_addr);
         }
     }

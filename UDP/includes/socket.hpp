@@ -41,11 +41,6 @@ inline auto get_message(
 {
     socklen_t client_len = sizeof(client_addr);
     auto res = recvfrom(sockfd, buffer, size, 0, (sockaddr *)&client_addr, &client_len);
-    if (res == -1)
-    {
-        close(sockfd);
-        throw std::runtime_error("Receive failed: " + std::string(strerror(errno)));
-    }
     return res;
 }
 

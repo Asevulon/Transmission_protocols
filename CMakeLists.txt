@@ -30,3 +30,4 @@ target_compile_features(nlohmann_json INTERFACE cxx_std_11)
 project(${PROJECT_NAME} LANGUAGES CXX)
 
 add_subdirectory(UDP)
+add_subdirectory(TCP)
