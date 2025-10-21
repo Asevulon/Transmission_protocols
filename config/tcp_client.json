@@ -2,5 +2,7 @@
     "buffer size": 1024,
     "port": 50000,
     "ip": "127.0.0.1",
-    "delay":2
+    "delay": 3,
+    "timeout": 5,
+    "connect_timeout": 5
 }
