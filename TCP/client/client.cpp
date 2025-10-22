@@ -5,11 +5,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <config.hpp>
-#include <thread>
+#include <vector>
+#include <csignal>
 #include <atomic>
 #include <poll.h>
-#include <csignal>
 
 using namespace std;
 
@@ -17,207 +16,195 @@ atomic<bool> running{true};
 
 void signal_handler(int sig) {
     running = false;
-    cout << "\nЗавершение работы...\n";
+    cout << "\nЗавершение работы клиента...\n";
 }
 
-// Функция для установки таймаута
-bool set_socket_timeout(int sockfd, int seconds) {
-    struct timeval timeout;
-    timeout.tv_sec = seconds;
-    timeout.tv_usec = 0;
-    
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-        perror("setsockopt SO_RCVTIMEO failed");
-        return false;
-    }
-    
-    if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0) {
-        perror("setsockopt SO_SNDTIMEO failed");
-        return false;
-    }
-    
-    return true;
-}
-
-// Безопасная отправка
-bool safe_send(int socket, const string& message, int timeout_sec = 5) {
-    if (!set_socket_timeout(socket, timeout_sec)) {
-        return false;
-    }
-    
-    size_t total_sent = 0;
-    while (total_sent < message.length() && running) {
-        ssize_t sent = send(socket, message.c_str() + total_sent, 
-                           message.length() - total_sent, MSG_NOSIGNAL);
-        
-        if (sent < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                cerr << "Таймаут отправки сообщения\n";
-                return false;
-            } else {
-                perror("Ошибка отправки");
-                return false;
-            }
-        }
-        total_sent += sent;
-    }
-    
-    return total_sent == message.length();
-}
-
-// Безопасное получение
-string safe_receive(int socket, size_t buffer_size, int timeout_sec = 5) {
-    if (!set_socket_timeout(socket, timeout_sec)) {
-        return "";
-    }
-    
-    vector<char> buffer(buffer_size, 0);
-    ssize_t received = read(socket, buffer.data(), buffer_size - 1);
-    
-    if (received < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            cerr << "Таймаут ожидания ответа от сервера\n";
-            return "";
-        } else {
-            perror("Ошибка чтения");
-            return "";
-        }
-    } else if (received == 0) {
-        cout << "Сервер отключился\n";
-        return "";
-    }
-    
-    buffer[received] = '\0';
-    return string(buffer.data());
-}
-
-// Поток для приема сообщений от сервера
-void receiver_thread(int sock, size_t buffer_size, int timeout_sec) {
-    cout << "Поток приема запущен\n";
-    
-    while (running) {
-        string response = safe_receive(sock, buffer_size, timeout_sec);
-        
-        if (response.empty()) {
-            if (running) {
-                cerr << "Потеряно соединение с сервером\n";
-            }
-            running = false;
-            break;
-        }
-        
-        cout << "\nСервер: " << response << endl;
-        cout << "Вы: " << flush;
-    }
-    
-    cout << "Поток приема завершен\n";
-}
-
-int connect_to_server(uint16_t port, const string &ip, int timeout_sec = 5) {
+int connect_to_server(uint16_t port, const string &ip) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        cerr << "Не удалось создать сокет\n";
+        perror("socket failed");
         return -1;
     }
 
     // Устанавливаем таймаут на подключение
-    if (!set_socket_timeout(sock, timeout_sec)) {
-        close(sock);
-        return -1;
-    }
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-    struct sockaddr_in serv_addr;
+    sockaddr_in serv_addr;
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(port);
 
     if (inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr) <= 0) {
-        cerr << "Неверный IP-адрес\n";
+        cerr << "Invalid IP address\n";
         close(sock);
         return -1;
     }
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            cerr << "Таймаут подключения к серверу\n";
-        } else {
-            perror("Ошибка подключения");
-        }
+        perror("connect failed");
         close(sock);
         return -1;
     }
 
+    // Увеличиваем таймаут после подключения
+    timeout.tv_sec = 30;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
     return sock;
 }
 
-int main(int argc, char **argv) {
-    std::signal(SIGINT, signal_handler);
-    std::signal(SIGPIPE, SIG_IGN);
-
-    auto conf = load_config_from_args(argc, argv);
-
-    size_t buffer_size = conf["buffer size"].get<size_t>();
-    uint16_t port = conf["port"].get<uint16_t>();
-    string ip = conf["ip"].get<string>();
-    int delay = conf.value("delay", 3);
-    int timeout_sec = conf.value("timeout", 5);
-    int connect_timeout = conf.value("connect_timeout", 5);
-
-    cout << "Клиент запущен. Подключение к " << ip << ":" << port << "...\n";
-    cout << "Таймаут операций: " << timeout_sec << " сек.\n";
-    cout << "Таймаут подключения: " << connect_timeout << " сек.\n";
-    cout << "Введите сообщение или '/quit' для выхода:\n";
-
-    int sock = -1;
-
-    while (running) {
-        if (sock == -1) {
-            sock = connect_to_server(port, ip, connect_timeout);
-            if (sock == -1) {
-                cout << "Не удаётся подключиться к серверу. Повтор через " 
-                     << delay << " сек...\n";
-                sleep(delay);
-                continue;
-            }
-            cout << "Подключено к серверу!\n";
+void communicate_with_server(int sock) {
+    bool connected = true;
+    
+    while (running && connected) {
+        // Проверяем ввод пользователя и данные от сервера
+        struct pollfd stdin_poll;
+        stdin_poll.fd = STDIN_FILENO;
+        stdin_poll.events = POLLIN;
+        
+        struct pollfd server_poll;
+        server_poll.fd = sock;
+        server_poll.events = POLLIN;
+        
+        struct pollfd fds[2] = {stdin_poll, server_poll};
+        int result = poll(fds, 2, 1000); // Таймаут 1 секунда
+        
+        if (result < 0) {
+            perror("poll failed");
+            break;
+        }
+        
+        // Обрабатываем ввод пользователя
+        if (fds[0].revents & POLLIN) {
+            string user_message;
+            getline(cin, user_message);
             
-            // Запускаем поток для приема сообщений
-            thread receiver(receiver_thread, sock, buffer_size, timeout_sec);
-            receiver.detach();
+            if (user_message == "quit") {
+                cout << "Завершение работы...\n";
+                running = false;
+                break;
+            }
+            
+            if (user_message == "reconnect") {
+                cout << "Принудительное переподключение...\n";
+                connected = false;
+                break;
+            }
+            
+            if (!user_message.empty()) {
+                user_message += "\n";
+                ssize_t sent = send(sock, user_message.c_str(), user_message.length(), 0);
+                if (sent <= 0) {
+                    perror("send failed");
+                    connected = false;
+                } else {
+                    cout << "Сообщение отправлено серверу\n";
+                }
+            }
         }
-
-        // Ввод сообщения от пользователя
-        string message;
-        cout << "Вы: ";
-        if (!getline(cin, message)) {
-            cout << "\nЗавершение работы\n";
-            break;
+        
+        // Обрабатываем данные от сервера
+        if (fds[1].revents & POLLIN) {
+            vector<char> buffer(1024, 0);
+            ssize_t received = recv(sock, buffer.data(), buffer.size() - 1, 0);
+            
+            if (received > 0) {
+                buffer[received] = '\0';
+                cout << "Сервер: " << buffer.data();
+                if (buffer[received-1] != '\n') cout << endl;
+            } else if (received == 0) {
+                cout << "Сервер отключился\n";
+                connected = false;
+            } else {
+                if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                    perror("recv failed");
+                    connected = false;
+                }
+            }
         }
-
-        if (message.empty()) {
-            continue;
+        
+        // Проверяем соединение (heartbeat)
+        static int heartbeat_counter = 0;
+        heartbeat_counter++;
+        if (heartbeat_counter >= 10) { // Каждые 10 секунд
+            heartbeat_counter = 0;
+            // Простая проверка - пытаемся отправить 0 байт
+            ssize_t result = send(sock, "", 0, MSG_NOSIGNAL);
+            if (result < 0) {
+                cout << "Соединение с сервером разорвано\n";
+                connected = false;
+            }
         }
-
-        if (message == "/quit") {
-            cout << "Завершение работы\n";
-            break;
-        }
-
-        // Отправка сообщения
-        if (!safe_send(sock, message, timeout_sec)) {
-            cerr << "Ошибка отправки. Переподключение...\n";
-            close(sock);
-            sock = -1;
-            continue;
-        }
-
-        cout << "Сообщение отправлено. Ожидание ответа...\n";
     }
-
-    running = false;
-    if (sock != -1) {
+    
+    if (sock >= 0) {
         close(sock);
     }
+}
 
-    cout << "Клиент остановлен.\n";
+int main() {
+    signal(SIGINT, signal_handler);
+    signal(SIGPIPE, SIG_IGN);
+
+    uint16_t port = 12345;
+    string ip = "127.0.0.1";
+    int reconnect_delay = 3; // секунды между попытками
+    int attempt = 0;
+
+    cout << "Клиент запущен\n";
+    cout << "Подключение к " << ip << ":" << port << "...\n";
+    cout << "Команды:\n";
+    cout << "  quit - выход из программы\n";
+    cout << "  reconnect - принудительное переподключение\n\n";
+
+    while (running) {
+        attempt++;
+        cout << "Попытка подключения #" << attempt << "...\n";
+        
+        int sock = connect_to_server(port, ip);
+        if (sock >= 0) {
+            cout << "Успешно подключено к серверу!\n";
+            cout << "Введите сообщения для отправки серверу:\n";
+            
+            attempt = 0; // Сбрасываем счетчик попыток при успешном подключении
+            communicate_with_server(sock);
+            
+            if (running) {
+                cout << "Потеряно соединение с сервером. Переподключение через " << reconnect_delay << " секунд...\n";
+                cout << "Нажмите Ctrl+C для выхода или подождите переподключения\n";
+                
+                // Ожидание перед переподключением
+                for (int i = reconnect_delay; i > 0 && running; i--) {
+                    cout << "Переподключение через " << i << " сек...\r" << flush;
+                    sleep(1);
+                }
+                cout << endl;
+            }
+        } else {
+            cout << "Не удалось подключиться к серверу\n";
+            
+            if (attempt >= 5) {
+                cout << "Не удалось подключиться после " << attempt << " попыток.\n";
+                cout << "Продолжить попытки? (y/n): ";
+                
+                string answer;
+                getline(cin, answer);
+                if (answer != "y" && answer != "Y") {
+                    running = false;
+                    break;
+                }
+                attempt = 0; // Сброс счетчика после подтверждения пользователя
+            } else {
+                cout << "Повторная попытка через " << reconnect_delay << " секунд...\n";
+                sleep(reconnect_delay);
+            }
+        }
+    }
+
+    cout << "Клиент остановлен\n";
     return 0;
 }
