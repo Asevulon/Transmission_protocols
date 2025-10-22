@@ -10,6 +10,7 @@
 #include <atomic>
 #include <poll.h>
 #include <fcntl.h>
+#include "config.hpp"
 
 using namespace std;
 
@@ -24,9 +25,11 @@ int main(int argc, char **argv) {
     signal(SIGINT, signal_handler);
     signal(SIGPIPE, SIG_IGN);
 
+    Config conf = load_config_from_args(argc, argv);
+
     // Простая конфигурация
-    uint16_t port = 12345;
-    size_t buffer_size = 1024;
+    uint16_t port = conf["port"].get<uint16_t>();
+    size_t buffer_size = conf["buffer size"].get<size_t>();
 
     int server_fd;
     sockaddr_in address;

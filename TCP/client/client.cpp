@@ -9,6 +9,7 @@
 #include <csignal>
 #include <atomic>
 #include <poll.h>
+#include "config.hpp"
 
 using namespace std;
 
@@ -146,13 +147,15 @@ void communicate_with_server(int sock) {
     }
 }
 
-int main() {
+int main(int argc, char **argv) {
     signal(SIGINT, signal_handler);
     signal(SIGPIPE, SIG_IGN);
 
-    uint16_t port = 12345;
-    string ip = "127.0.0.1";
-    int reconnect_delay = 3; // секунды между попытками
+    Config conf = load_config_from_args(argc, argv);
+
+    uint16_t port = conf["port"].get<uint16_t>();
+    string ip = conf["ip"].get<std::string>();
+    int reconnect_delay = conf["delay"].get<uint16_t>(); // секунды между попытками
     int attempt = 0;
 
     cout << "Клиент запущен\n";
