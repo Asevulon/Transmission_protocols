@@ -11,7 +11,7 @@ function(create_executable EXE_NAME SOURCE_DIR)
 endfunction()
 
 set(PROJECT_NAME "Transmission_protocols")
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 

@@ -92,7 +92,10 @@ int main(int argc, char **argv)
             }
             buffer[valread] = '\0';
             std::cout << "От клиента: " << buffer.data() << std::endl;
-            send(new_socket, buffer.data(), strlen(buffer.data()), 0);
+            std::cout << "Ответ сервера: " << std::endl;
+            std::string res;
+            std::cin >> res;
+            send(new_socket, res.data(), strlen(res.data()), 0);
         }
 
         close(new_socket);
